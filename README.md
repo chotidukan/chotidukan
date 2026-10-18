@@ -1,4 +1,4 @@
-# Kesariya — Netlify source package
+# Kesariya — Netlify source package 
 
 This is the latest grocery marketplace demo, adapted to standard Next.js for Netlify. It includes batch best-before dates and near-date discounts, product subscriptions and synonym-aware search, as well as the original shopping, multi-store checkout and shopkeeper dashboard.
 
