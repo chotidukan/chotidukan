@@ -1,0 +1,4 @@
+import 'server-only';
+import {createHmac,timingSafeEqual}from 'node:crypto';
+export function validSignature(payload:string,signature:string,secret:string){if(!/^[a-fA-F0-9]{64}$/.test(signature))return false;const expected=createHmac('sha256',secret).update(payload).digest();return timingSafeEqual(expected,Buffer.from(signature,'hex'));}
+export async function razorpay(path:string,method='GET',body?:unknown){const id=process.env.RAZORPAY_KEY_ID,secret=process.env.RAZORPAY_KEY_SECRET;if(!id||!secret)throw new Error('Online payments are unavailable');const response=await fetch('https://api.razorpay.com/v1/'+path,{method,headers:{Authorization:'Basic '+Buffer.from(id+':'+secret).toString('base64'),'Content-Type':'application/json'},body:body?JSON.stringify(body):undefined,signal:AbortSignal.timeout(15000),cache:'no-store'});if(!response.ok)throw new Error('Payment provider is unavailable. Your reserved order can be retried.');return response.json();}

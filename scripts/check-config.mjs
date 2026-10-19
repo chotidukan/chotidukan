@@ -1,0 +1,5 @@
+const required=['NEXT_PUBLIC_SITE_URL','NEXT_PUBLIC_SUPABASE_URL','NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY','SUPABASE_SERVICE_ROLE_KEY','NEXT_PUBLIC_SUPPORT_EMAIL'];
+const missing=required.filter(name=>!process.env[name]||/YOUR_|CHANGE_ME/.test(process.env[name]));
+for(const name of ['NEXT_PUBLIC_SITE_URL','NEXT_PUBLIC_SUPABASE_URL'])if(process.env[name]){try{const u=new URL(process.env[name]);if(u.protocol!=='https:'&&u.hostname!=='localhost')missing.push(name+' must use HTTPS');}catch{missing.push(name+' is not a valid URL');}}
+const payment=['RAZORPAY_KEY_ID','RAZORPAY_KEY_SECRET','RAZORPAY_WEBHOOK_SECRET'];if(payment.some(k=>process.env[k]))missing.push(...payment.filter(k=>!process.env[k]));
+if(missing.length){console.error('Configuration needs attention: '+[...new Set(missing)].join(', '));process.exitCode=1;}else console.log('Required environment values are present. Provider setup, SMS delivery, webhook delivery and account isolation still require the live acceptance checks in LAUNCH.md.');

@@ -1,9 +1,9 @@
 [build]
-  command = "npm run build"
-  publish = ".next"
-
+command = "npm run build"
+publish = ".next"
 [build.environment]
-  NODE_VERSION = "24"
-  NEXT_TELEMETRY_DISABLED = "1"
-# Netlify auto-detects Next.js and installs its current OpenNext adapter.
-# Configure Supabase variables in Netlify (build and functions scopes).
+NODE_VERSION = "24"
+NEXT_TELEMETRY_DISABLED = "1"
+[functions]
+directory = "netlify/functions"
+node_bundler = "esbuild"

@@ -1,0 +1,2 @@
+// Paginate operational tables so reports do not silently stop at Supabase's default row limit.
+export async function allRows(query:(from:number,to:number)=>PromiseLike<{data:unknown[]|null;error:unknown}>){const out:unknown[]=[];for(let from=0;from<100000;from+=1000){const {data,error}=await query(from,from+999);if(error)throw new Error('Could not load report data');out.push(...(data||[]));if(!data||data.length<1000)return out;}throw new Error('Report exceeds 100,000 records. Narrow the reporting window.');}

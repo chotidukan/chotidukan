@@ -1,0 +1,2 @@
+import {createClient}from '../../../lib/supabase/server';import {requireUser,body,json,fail}from '../../../lib/http';
+export async function POST(request:Request){try{await requireUser();const v=await body(request),db=await createClient();const r=await db.rpc('record_demand',{p_store:v.storeId,p_query:String(v.query||'').slice(0,100),p_type:v.type,p_product:v.productId||null,p_lat:v.lat,p_lng:v.lng});if(r.error)throw new Error('Could not record product demand');return json({saved:true});}catch(e){return fail(e);}}

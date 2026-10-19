@@ -1,0 +1,2 @@
+import {createClient}from '../../../lib/supabase/server';import {requireUser,json,fail}from '../../../lib/http';
+export async function GET(){try{const u=await requireUser(),db=await createClient();const {data,error}=await db.from('orders').select('*,store_orders(*,order_items(*))').eq('customer_id',u.id).order('created_at',{ascending:false}).limit(200);if(error)throw new Error('Could not load orders');return json({orders:data});}catch(e){return fail(e);}}

@@ -1,0 +1,32 @@
+import type {OwnerData,Item,Product} from './types';
+import {available,indiaDate,dayDifference} from './commerce';
+const costOf=(i:Item)=>Array.isArray(i.order_item_costs)?i.order_item_costs[0]?.unit_cost:i.order_item_costs?.unit_cost;
+const productCost=(p:Product)=>Array.isArray(p.product_costs)?p.product_costs[0]?.unit_cost:p.product_costs?.unit_cost;
+export function analyse(data:OwnerData,days=30,at=Date.now()){
+ const end=Date.parse(indiaDate(at)+'T00:00:00+05:30')+86400000,start=end-days*86400000,priorStart=start-days*86400000;
+ const inRange=(s:string|null,a=start,b=end)=>!!s&&Date.parse(s)>=a&&Date.parse(s)<b;
+ const accepted=data.deliveries.filter(d=>!['awaiting_payment','cancelled'].includes(d.status));
+ const sold=accepted.filter(d=>d.status==='delivered'&&inRange(d.delivered_at));
+ const placed=accepted.filter(d=>inRange(d.created_at));
+ const old=accepted.filter(d=>d.status==='delivered'&&inRange(d.delivered_at,priorStart,start));
+ const revenue=sold.reduce((n,d)=>n+d.subtotal,0),oldRevenue=old.reduce((n,d)=>n+d.subtotal,0);
+ const items=sold.flatMap(d=>d.order_items),units=items.reduce((n,i)=>n+i.quantity,0);
+ const known=items.filter(i=>costOf(i)!=null),knownRevenue=known.reduce((n,i)=>n+i.quantity*i.unit_price,0),cogs=known.reduce((n,i)=>n+i.quantity*costOf(i)!,0);
+ const byCustomer=new Map<string,number>();placed.forEach(d=>byCustomer.set(d.customer_id,(byCustomer.get(d.customer_id)||0)+1));
+ const trend=Array.from({length:days},(_,i)=>({date:indiaDate(start+i*86400000),sales:0,orders:0}));
+ sold.forEach(d=>{const row=trend.find(x=>x.date===indiaDate(Date.parse(d.delivered_at!)));if(row)row.sales+=d.subtotal/100;});placed.forEach(d=>{const row=trend.find(x=>x.date===indiaDate(Date.parse(d.created_at)));if(row)row.orders++;});
+ const grouped=new Map<string,{id:string;name:string;category:string;units:number;revenue:number;cost:number;knownUnits:number}>();
+ items.forEach(i=>{const x=grouped.get(i.product_id)||{id:i.product_id,name:i.name,category:i.category,units:0,revenue:0,cost:0,knownUnits:0};x.units+=i.quantity;x.revenue+=i.quantity*i.unit_price;if(costOf(i)!=null){x.cost+=i.quantity*costOf(i)!;x.knownUnits+=i.quantity;}grouped.set(i.product_id,x);});
+ const top=[...grouped.values()].sort((a,b)=>b.revenue-a.revenue);
+ const cats=new Map<string,number>();items.forEach(i=>cats.set(i.category,(cats.get(i.category)||0)+i.quantity*i.unit_price/100));
+ const recent=accepted.filter(d=>Date.parse(d.created_at)>=at-14*86400000&&(!d.scheduled_for||Date.parse(d.scheduled_for)<=at));
+ const velocity=new Map<string,number>();recent.flatMap(d=>d.order_items).forEach(i=>velocity.set(i.product_id,(velocity.get(i.product_id)||0)+i.quantity/14));
+ const stock=data.products.map(p=>{const rate=velocity.get(p.id)||0,stock=available(p,at);return {product:p,stock,daily:rate,cover:rate?stock/rate:null,reorder:Math.max(0,Math.ceil(Math.max(p.reorder_level,rate*7))-stock)};}).sort((a,b)=>b.reorder-a.reorder);
+ const held=data.products.flatMap(p=>p.inventory_batches.filter(b=>b.units>0&&b.best_before&&b.best_before<indiaDate(at)).map(b=>({product:p,batch:b})));
+ const expiring=data.products.flatMap(p=>p.inventory_batches.filter(b=>b.units>0&&b.best_before&&dayDifference(b.best_before,at)>=0&&dayDifference(b.best_before,at)<=7).map(b=>({product:p,batch:b}))).sort((a,b)=>a.batch.best_before!.localeCompare(b.batch.best_before!));
+ const hours=Array.from({length:24},(_,h)=>({hour:`${h.toString().padStart(2,'0')}:00`,orders:0}));const heat=Array.from({length:7},()=>Array(24).fill(0) as number[]);
+ placed.forEach(d=>{const date=new Date(Date.parse(d.created_at)+19800000);hours[date.getUTCHours()].orders++;heat[date.getUTCDay()][date.getUTCHours()]++;});
+ const demand=data.demand.filter(d=>inRange(d.created_at));const searches=new Map<string,number>();demand.filter(d=>d.event_type==='search').forEach(d=>searches.set(d.query,(searches.get(d.query)||0)+1));
+ const inventoryCost=data.products.reduce((n,p)=>n+available(p,at)*(productCost(p)??0),0);
+ return {revenue,oldRevenue,growth:oldRevenue?100*(revenue-oldRevenue)/oldRevenue:null,delivered:sold.length,placed:placed.length,aov:sold.length?revenue/sold.length:0,units,customers:byCustomer.size,repeatCustomers:[...byCustomer.values()].filter(n=>n>1).length,knownRevenue,cogs,margin:knownRevenue?100*(knownRevenue-cogs)/knownRevenue:null,costCoverage:units?known.reduce((n,i)=>n+i.quantity,0)/units:0,collected:sold.filter(d=>d.payment_collected).reduce((n,d)=>n+d.subtotal+d.delivery_fee,0),trend,top,categories:[...cats].map(([name,value])=>({name,value})),stock,held,expiring,hours,heat,searches:[...searches].map(([query,count])=>({query,count})).sort((a,b)=>b.count-a.count),stockouts:demand.filter(d=>d.event_type==='stockout').length,inventoryCost,inventoryCostCoverage:data.products.length?data.products.filter(p=>productCost(p)!=null).length/data.products.length:0,active:accepted.filter(d=>!['delivered','cancelled'].includes(d.status)).length,statuses:['confirmed','packing','out_for_delivery','delivered','cancelled'].map(status=>({status,count:data.deliveries.filter(d=>d.status===status&&inRange(d.created_at)).length})),subscriptions:data.subscriptions.length};
+}
