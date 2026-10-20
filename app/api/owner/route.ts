@@ -11,4 +11,6 @@ export async function POST(request:Request){try{const user=await requireUser(),v
  else if(v.action==='batch')result=await db.rpc('adjust_batch',{p_batch:v.batchId,p_delta:v.delta||0,p_reason:v.reason||'',p_sale:v.salePrice??null,p_lead:v.saleLead??3});
  else if(v.action==='cancel-cod')result=await db.rpc('cancel_cod_delivery',{p_delivery:v.deliveryId,p_reason:v.reason});
  else if(v.action==='delivery')result=await db.rpc('progress_delivery',{p_delivery:v.deliveryId,p_status:v.status,p_eta:v.eta||null,p_cash_collected:!!v.cashCollected});
+ else if(v.action==='seed-samples')result=await db.rpc('seed_sample_catalog',{p_store:v.storeId});
+ else if(v.action==='remove-samples')result=await db.rpc('remove_sample_catalog',{p_store:v.storeId});
  else throw new Error('Unknown store action');if(result.error)throw new Error(result.error.message);return json({saved:true,result:result.data});}catch(e){return fail(e);}}

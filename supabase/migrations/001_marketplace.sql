@@ -1,5 +1,5 @@
 begin;
-create table public.profiles (id uuid primary key references auth.users(id) on delete cascade, full_name text not null default '' check(length(full_name)<=100), created_at timestamptz not null default now());
+create table public.chotidukan_profiles (id uuid primary key references auth.users(id) on delete cascade, full_name text not null default '' check(length(full_name)<=100), created_at timestamptz not null default now());
 create table public.marketplace_settings (id boolean primary key default true check(id), allow_cod boolean not null default true, allow_online boolean not null default false);
 insert into public.marketplace_settings default values;
 create table public.stores (
@@ -37,8 +37,8 @@ create function public.owns_store(p_store uuid) returns boolean language sql sta
 create function public.km_distance(a double precision,b double precision,c double precision,d double precision) returns double precision language sql immutable as $$select 6371*2*asin(least(1,sqrt(power(sin(radians(c-a)/2),2)+cos(radians(a))*cos(radians(c))*power(sin(radians(d-b)/2),2))))$$;
 create function public.india_today() returns date language sql stable as $$select (now() at time zone 'Asia/Kolkata')::date$$;
 
-alter table public.profiles enable row level security;
-create policy profiles_self on public.profiles for all to authenticated using(id=auth.uid()) with check(id=auth.uid());
+alter table public.chotidukan_profiles enable row level security;
+create policy chotidukan_profiles_self on public.chotidukan_profiles for all to authenticated using(id=auth.uid()) with check(id=auth.uid());
 alter table public.marketplace_settings enable row level security;
 create policy settings_read on public.marketplace_settings for select using(true);
 alter table public.stores enable row level security;
@@ -74,7 +74,7 @@ alter table public.audit_log enable row level security;
 create policy audit_owner on public.audit_log for select to authenticated using(public.owns_store(store_id));
 
 grant select on public.marketplace_settings,public.stores,public.products,public.inventory_batches to anon,authenticated;
-grant select,insert,update on public.profiles,public.stores to authenticated;
+grant select,insert,update on public.chotidukan_profiles,public.stores to authenticated;
 grant select on public.product_costs,public.orders,public.store_orders,public.order_items,public.order_item_costs,public.stock_movements,public.demand_events,public.subscriptions,public.subscription_runs,public.audit_log to authenticated;
 revoke insert,update,delete on public.products,public.product_costs,public.inventory_batches,public.orders,public.store_orders,public.order_items,public.order_item_costs,public.stock_movements,public.demand_events,public.subscriptions,public.subscription_runs,public.payment_events,public.audit_log from anon,authenticated;
 
@@ -125,7 +125,7 @@ begin
  if (select count(*) from public.orders where customer_id=p_customer and status='awaiting_payment')>=3 then raise exception 'Finish or wait for your pending payments before ordering again';end if;
  if p_subscription is null and (select count(*) from public.orders where customer_id=p_customer and created_at>now()-interval '1 hour')>=30 then raise exception 'Too many orders. Please try later';end if;
  if not exists(select 1 from public.marketplace_settings where (p_method='cod' and allow_cod) or (p_method='online' and allow_online)) then raise exception 'Payment method is not available';end if;
- select coalesce(nullif(full_name,''),'Customer') into v_name from public.profiles where id=p_customer;v_name=coalesce(v_name,'Customer');
+ select coalesce(nullif(full_name,''),'Customer') into v_name from public.chotidukan_profiles where id=p_customer;v_name=coalesce(v_name,'Customer');
  insert into public.orders(customer_id,request_key,payment_method,payment_status,status,address,customer_phone,customer_name,lat,lng,expires_at,scheduled_for,subscription_id)
  values(p_customer,p_key,p_method,case when p_method='cod' then 'cod_due' else 'awaiting' end,case when p_method='cod' then 'confirmed' else 'awaiting_payment' end,trim(p_address),v_phone,v_name,p_lat,p_lng,case when p_method='online' then now()+interval '15 minutes' end,p_scheduled,p_subscription) returning id into v_order;
  for v_line in select (x->>'productId')::uuid as product_id,sum((x->>'quantity')::int)::int as qty from jsonb_array_elements(p_cart) x group by 1 order by 1 loop

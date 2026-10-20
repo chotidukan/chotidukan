@@ -5,6 +5,7 @@ import { PGlite } from '@electric-sql/pglite';
 const db=new PGlite();
 await db.exec(`create schema auth;create role anon;create role authenticated;create role service_role bypassrls;grant usage on schema public,auth to anon,authenticated,service_role;create table auth.users(id uuid primary key,phone text,phone_confirmed_at timestamptz);create function auth.uid()returns uuid language sql stable as $$select nullif(current_setting('request.jwt.claim.sub',true),'')::uuid$$;`);
 await db.exec(await readFile(new URL('../supabase/migrations/001_marketplace.sql',import.meta.url),'utf8'));
+await db.exec(await readFile(new URL('../supabase/migrations/003_sample_catalog.sql',import.meta.url),'utf8'));
 const owner='11111111-1111-4111-8111-111111111111',other='22222222-2222-4222-8222-222222222222',buyer='33333333-3333-4333-8333-333333333333';
 await db.query(`insert into auth.users values($1,'+919876543210',now()),($2,'+919876543211',now()),($3,'+919876543212',now())`,[owner,other,buyer]);
 const as=async(id,role='authenticated')=>{await db.exec(`set role ${role}`);await db.query(`select set_config('request.jwt.claim.sub',$1,false)`,[id||'']);};
@@ -83,4 +84,12 @@ test('multiple stores share one checkout while ownership and fees stay separate'
 });
 test('malformed quantities cannot drain batches or create partial orders',async()=>{
  await as(buyer);await assert.rejects(()=>db.query(`select public.place_order($1,$2,'Customer home, Sector 88',28.4116,77.346,'cod')`,[crypto.randomUUID(),JSON.stringify([{productId:product}])]),/quantity/);
+});
+
+test('shop owners can add and safely remove the 24-product starter catalogue',async()=>{
+ await as(owner);assert.equal((await db.query(`select public.seed_sample_catalog($1)n`,[store])).rows[0].n,24);
+ const rows=(await db.query(`select count(*)n,min(image_index)lo,max(image_index)hi from public.products where store_id=$1 and sample_data`,[store])).rows[0];assert.equal(Number(rows.n),24);assert.equal(rows.lo,0);assert.equal(rows.hi,23);
+ await assert.rejects(()=>db.query(`select public.seed_sample_catalog($1)`,[store]),/already has/);
+ await as(other);await assert.rejects(()=>db.query(`select public.remove_sample_catalog($1)`,[store]),/access denied/);
+ await as(owner);await db.query(`select public.remove_sample_catalog($1)`,[store]);assert.equal(Number((await db.query(`select count(*)n from public.products where store_id=$1 and sample_data and active`,[store])).rows[0].n),0);
 });

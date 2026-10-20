@@ -1,8 +1,20 @@
 # ChotiDukan Live — independent stores, connected neighbourhoods
 
+## October 20 customer design release
+
+The customer application now uses the requested ivory/forest/saffron design system across shopping, shop profiles, grouped cart/checkout, orders, subscriptions and account screens. Mobile navigation provides Home, Search, Orders and Account. Products appear ahead of the larger shop-discovery and shopping-assistance sections.
+
+- Open `design/design-preview.html` after extracting the ZIP to review Home, Shop, Browse, Cart and Checkout at 390px and desktop widths.
+- Read `design/DESIGN-SYSTEM.md` for colour roles, measured contrast, typography, components and the milk/atta/vegetables journey review.
+- Run `node scripts/verify-design.mjs` to verify the specified colour contrasts and gallery syntax/assets.
+- No new database migration is required. Deploy through the existing Netlify build workflow.
+- The gallery contains explicitly labelled sample content and is not part of the live marketplace routing. Browser/device visual QA remains outstanding.
+
+Latest release: see `NEIGHBOURHOOD-UPDATE.md` for trusted shops, repeat baskets, shopping-list matching, Easy mode, merchant Today view and shareable shop links. This update requires no additional migration after 003.
+
 A deployable Next.js application for Netlify, with Supabase PostgreSQL, phone-number customer authentication, independent shop-owner accounts, shared store inventory, real orders, and a merchant reporting studio.
 
-There are **no sample stores, seeded sales, simulated payments or automatic delivery completions** in the application. A new installation starts empty. Test fixtures exist only under `tests/` and are never loaded into the application database.
+There are **no sample stores, seeded sales, simulated payments or automatic delivery completions** in the application. A new installation starts without stores or orders. After creating a store, its owner can optionally add an editable 24-product starter grocery catalogue from the Inventory dashboard.
 
 ## What changed from the earlier package
 
@@ -22,6 +34,11 @@ Customers sign up and sign in by SMS OTP. Shopkeepers have a separate email/pass
 - Private unit purchase costs snapshotted when an order is placed, with explicit cost-coverage indicators in reports.
 - Dairy/essential subscriptions: daily, alternate-day or selected-weekday schedules; one-hour IST slots; edit/pause/resume/cancel. These create actual **pay-on-delivery** orders up to 24 hours before a slot. No unapproved recurring online charges or payment mandates are assumed.
 - Product photo uploads to an owner-scoped Supabase Storage folder.
+- An optional 24-item starter grocery catalogue with bundled, unbranded product photography, realistic editable Indian prices, multilingual search aliases, stock, best-before dates and subscription-ready essentials.
+
+## Starter grocery catalogue
+
+After creating a store, open **Shop owner → Inventory → Add 24 starter products**. The products are normal live inventory: review every pack size, MRP, selling price, purchase cost, stock quantity and best-before date before opening the store. You can edit them individually or remove the starter catalogue. Removal deletes unused starter rows; products already referenced by orders are safely unlisted instead so historical invoices and reports remain intact.
 
 ## Merchant reporting studio
 
@@ -46,7 +63,7 @@ Next.js 16 / React 19 / TypeScript / Tailwind CSS 4 plus bespoke CSS / Recharts 
 ## Set up Supabase
 
 1. Create a Supabase project. Use a fresh project for this live version if you want a clean separation from the earlier demo.
-2. Run `supabase/migrations/001_marketplace.sql` once in the SQL Editor, then `002_images.sql`. These are transactional versioned migrations, not seed scripts. Do not run `tests/database.test.mjs` against your Supabase project; it uses an isolated in-memory PostgreSQL engine.
+2. Run `supabase/migrations/000_preflight.sql` in the SQL Editor. If it reports READY, run `001_marketplace.sql` once, then `002_images.sql` and `003_sample_catalog.sql` in order. The installations are transactional. `001_marketplace.sql` is intentionally run once; do not rerun it after a successful installation. `003_sample_catalog.sql` is safe to apply to an existing live schema and only adds the owner-controlled starter-catalogue feature. Do not run `tests/database.test.mjs` against your Supabase project; it uses an isolated in-memory PostgreSQL engine.
 3. In Authentication, enable Phone and configure a supported **live SMS provider**. Configure its sender/templates and country delivery settings. Disable test phone/OTP bypasses for launch. Set Supabase rate limits and enable CAPTCHA protection. If using Turnstile, set the same provider secret in Supabase and its public site key in this app.
 4. Enable Email/Password for shopkeepers and keep email confirmation on. Configure SMTP for registration emails. Set the Site URL to your deployment origin and allow `/auth/callback` under that origin.
 5. Copy the project URL, publishable key and server-only service-role key into your Netlify environment. The service-role key is used only by payment reconciliation and scheduled operations. Never put it in a `NEXT_PUBLIC_` variable.
@@ -160,6 +177,8 @@ Tests exercise actual PostgreSQL schema/RLS/RPC behavior using PGlite, alongside
 
 The October 2026 redesign adds a saffron, ivory and forest-green identity, large category tiles with English/Hindi category labels, larger touch controls, reduced-motion support, a keyboard skip link and screen-reader basket feedback. The larger-text preference is saved on this browser; it increases product and checkout text and switches mobile shopping to a single column.
 
+The premium commerce refresh adds a sticky mobile discovery bar, faster location and delivery context, optional browser voice search, popular-search shortcuts, a photographic quick-picks rail, verified-style neighbourhood store cards, clearer stock/savings signals, and a more prominent multi-store basket. Voice search depends on browser support and falls back to typed search without changing permissions or account data.
+
 Customers can save favourites on their device (scoped by signed-in account), find previously ordered products using Buy again, sort available items by price/name, clear filters, and open a persistent basket summary. Buy again only displays products currently returned by the nearby-store catalogue; it does not automatically place orders. Previous order retrieval is limited to the latest 200 orders. Favourites are not cloud-synced. Hindi labels cover categories; the entire interface is not translated. Old Kesariya basket, address and location keys migrate on the same browser origin.
 
 No database migration or new environment variable is required for this redesign. Existing Supabase/SMS/Razorpay configuration is still required. This downloadable package has not been pushed to GitHub or deployed to Netlify automatically.
@@ -181,3 +200,17 @@ Customer navigation and landing pages contain no staff links. These are separate
 For site administrators, create/confirm an email/password user in Supabase Auth and copy its immutable user UUID into server-only `SITE_ADMIN_USER_IDS` in Netlify. Use comma-separated UUIDs for multiple administrators and redeploy after changes. An empty value denies everyone. Do not put this variable in browser-exposed configuration. No public administrator registration is provided. The server verifies the authenticated user before constructing the privileged database client. Shopkeepers still only access their own shops under database row-level security. Customer and staff sessions share the same origin; signing out signs out the active browser session.
 
 The platform overview shows live total shop/product/order counts, refund-required count, and the latest 20 orders, without customer addresses or phone numbers. It is not a refund, settlement, or user-management console. The former `/owner` page routes have been removed; share the new shopkeeper URLs privately. Existing email confirmation links targeting `/owner` should be reissued using the updated signup flow.
+
+
+### If Supabase reports `relation "profiles" already exists`
+
+Earlier ChotiDukan packages used the generic table name `public.profiles`, which can collide with Supabase starter schemas. The current migration uses `public.chotidukan_profiles` and does not alter or delete an existing `public.profiles` table. Download the latest package and run its `001_marketplace.sql` from the beginning. Because the migration is wrapped in a transaction, the failed attempt that stopped at its first statement did not create later ChotiDukan objects.
+
+First run `000_preflight.sql`. Continue with `001_marketplace.sql` only when it reports READY. If it reports that ChotiDukan tables already exist, the original migration may already have completed; do not rerun it. If it reports a partial or colliding schema because this project contains the earlier ChotiDukan demo, run `000_archive_demo_before_live.sql` once. It moves conflicting demo tables into the private `chotidukan_demo_backup` schema, preserves their rows, removes conflicting demo routines, and leaves `public` ready for the live migration. Confirm its final query returns zero rows, rerun `000_preflight.sql`, then run `001_marketplace.sql`, `002_images.sql` and `003_sample_catalog.sql` in order. Never drop `public.profiles` merely to make this migration run; it may belong to another application.
+
+
+### Earlier demo in the same Supabase project
+
+`000_archive_demo_before_live.sql` is only for a confirmed earlier ChotiDukan demo, not an unrelated application. It keeps demo table data in `chotidukan_demo_backup`, retains Auth users, preserves `public.profiles`, and keeps Storage files/buckets. The backup schema is revoked from client roles. It removes old demo functions and the three old `product-images` policies because their names would conflict with the live install. It refuses to run again when the backup schema already exists.
+
+Demo rows are archived rather than converted: demo stores, products and orders do not automatically enter the live marketplace because the live schema has stricter ownership, inventory-batch, payment and order structures. Keep the backup until the live installation and acceptance checks have passed. Any later data conversion should be a reviewed migration, not manual copying.

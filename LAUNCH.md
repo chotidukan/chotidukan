@@ -6,8 +6,9 @@ Use a staging deployment with your own Supabase project and payment-provider tes
 
 1. Request and verify an actual SMS code on two different phones. Check wrong/expired codes, resend cooldown, CAPTCHA and provider rate limits. Confirm there are no test-OTP bypasses.
 2. Create two shopkeeper accounts, complete confirmation emails and sign in. Create a separate store for each. Confirm neither owner can load or change the other's products, batches, delivery details, purchase costs or reports, including through direct API requests.
-3. Add actual product names, pack sizes, prices and photos. Receive stock with the printed best-before dates. Do not use catalogue illustrations where a different product/pack would mislead the customer.
+3. Apply `003_sample_catalog.sql`. If using the Inventory dashboard's starter catalogue, review all 24 product names, pack sizes, selling prices, MRPs, costs, stock and best-before dates. Replace any catalogue photo that could mislead customers about the actual product or pack.
 4. Keep stores closed until their opening inventory, location pin, delivery fees, provider and estimates have been reviewed. Open a store and confirm customers within 1 km see it while customers outside do not.
+5. Test **Remove starter products** before taking orders and after a staging order. Confirm unused items are deleted, while ordered products become unlisted and remain visible in order/report history.
 
 ## Orders and money
 
